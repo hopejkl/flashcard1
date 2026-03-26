@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>口译核心词汇自测闪卡</title>
+<style>
+  /* 基础页面样式 */
+  body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+  .container { width: 90%; max-width: 450px; text-align: center; }
+  .progress { margin-bottom: 20px; font-size: 1.2em; color: #7f8c8d; font-weight: bold; }
+  
+  /* 3D 翻转卡片样式 */
+  .scene { width: 100%; height: 280px; perspective: 600px; margin-bottom: 30px; cursor: pointer; }
+  .card { width: 100%; height: 100%; position: relative; transition: transform 0.6s cubic-bezier(0.4, 0.2, 0.2, 1); transform-style: preserve-3d; }
+  .card.is-flipped { transform: rotateY(180deg); }
+  .card__face { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; background: white; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.08); display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 25px; box-sizing: border-box; }
+  .card__face--back { transform: rotateY(180deg); background: #ffffff; border: 2px solid #3498db; }
+  
+  /* 文字排版 */
+  .word { font-size: 2.8em; font-weight: 800; color: #2c3e50; margin-bottom: 5px; }
+  .phonetic { font-size: 1.2em; color: #95a5a6; }
+  .meaning { font-size: 1.5em; font-weight: bold; color: #e74c3c; margin-bottom: 20px; }
+  .sentence { font-size: 1.15em; color: #34495e; line-height: 1.5; text-align: left; background: #f8f9fa; padding: 15px; border-radius: 10px; width: 100%; box-sizing: border-box;}
+  .sentence b { color: #2980b9; } /* 例句中高亮目标词汇 */
+  .hint { font-size: 0.9em; color: #bdc3c7; position: absolute; bottom: 20px; animation: pulse 2s infinite; }
+  @keyframes pulse { 0% { opacity: 0.6; } 50% { opacity: 1; } 100% { opacity: 0.6; } }
+  
+  /* 底部按钮 */
+  .controls { display: flex; justify-content: space-between; opacity: 0; transition: opacity 0.3s; pointer-events: none; gap: 15px; }
+  .controls.visible { opacity: 1; pointer-events: auto; }
+  button { flex: 1; border: none; padding: 18px 20px; font-size: 1.2em; border-radius: 15px; cursor: pointer; transition: transform 0.1s, box-shadow 0.2s; color: white; font-weight: bold; outline: none; }
+  button:active { transform: scale(0.96); }
+  .btn-wrong { background-color: #ff7675; box-shadow: 0 4px 0 #d63031; }
+  .btn-right { background-color: #55efc4; box-shadow: 0 4px 0 #00b894; color: #2d3436; }
+  
+  /* 结算页面 */
+  #end-screen { display: none; background: white; padding: 40px 30px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.08); max-width: 500px; width: 90%; }
+  #end-screen h2 { color: #2c3e50; margin-top: 0; }
+  .review-list { text-align: left; margin-top: 25px; max-height: 350px; overflow-y: auto; padding-right: 10px; }
+  .review-item { padding: 12px 0; border-bottom: 1px dashed #dfe6e9; }
+  .review-word { font-weight: bold; color: #e74c3c; font-size: 1.2em; display: inline-block; width: 140px; }
+  .btn-restart { background-color: #0984e3; box-shadow: 0 4px 0 #0056b3; width: 100%; margin-top: 25px; color: white;}
+</style>
+</head>
+<body>
+
+<div class="container" id="app-container">
+  <div class="progress" id="progress-text">1 / 20</div>
+  
+  <div class="scene" id="scene">
+    <div class="card" id="card">
+      <div class="card__face card__face--front">
+        <div class="word" id="front-word">Word</div>
+        <div class="phonetic" id="front-phonetic">[phonetic]</div>
+        <div class="hint">👆 点击卡片翻看释义</div>
+      </div>
+      <div class="card__face card__face--back">
+        <div class="meaning" id="back-meaning">Meaning</div>
+        <div class="sentence" id="back-sentence">Sentence</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls" id="controls">
+    <button class="btn-wrong" onclick="handleAnswer(false)">❌ 不认识</button>
+    <button class="btn-right" onclick="handleAnswer(true)">✅ 认识</button>
+  </div>
+</div>
+
+<div id="end-screen">
+  <h2>🎉 自测完成！</h2>
+  <p style="color: #636e72;">以下是你的专属「生词盲区」，请查阅词典，准备稍后的 Charades 挑战：</p>
+  <div class="review-list" id="review-list"></div>
+  <button class="btn-restart" onclick="location.reload()">再测一次</button>
+</div>
+
+<script>
+  // 核心词汇数据
+  const words = [
+    { word: 'transition', phonetic: '[trænˈzɪʃn]', meaning: 'n. 过渡，转变', sentence: 'The global transition to renewable energy sources requires cooperation.' },
+    { word: 'renewable', phonetic: '[rɪˈnjuːəbl]', meaning: 'adj. 可再生的', sentence: 'We must switch to renewable energy sources like solar and wind.' },
+    { word: 'combat', phonetic: '[ˈkɒmbæt]', meaning: 'v. 战斗，应对，防止', sentence: 'This policy is essential for combating climate change.' },
+    { word: 'unprecedented', phonetic: '[ʌnˈpresɪdentɪd]', meaning: 'adj. 史无前例的', sentence: 'The disaster caused damage on an unprecedented scale.' },
+    { word: 'paradigm', phonetic: '[ˈpærədaɪm]', meaning: 'n. 范例，模式', sentence: 'The tech industry is experiencing a paradigm shift.' },
+    { word: 'inevitably', phonetic: '[ɪnˈevɪtəbli]', meaning: 'adv. 不可避免地', sentence: 'Economic growth must inevitably lead to environmental degradation.' },
+    { word: 'degradation', phonetic: '[ˌdeɡrəˈdeɪʃn]', meaning: 'n. 恶化，降级', sentence: 'Sustainable advocates challenge the environmental degradation.' },
+    { word: 'advocate', phonetic: '[ˈædvəkət]', meaning: 'n. 提倡者，拥护者', sentence: 'She is a strong advocate for human rights.' },
+    { word: 'dynamic', phonetic: '[daɪˈnæmɪk]', meaning: 'n. 动态，动力', sentence: 'Remote work has altered the traditional office dynamic.' },
+    { word: 'prompt', phonetic: '[prɒmpt]', meaning: 'v. 促使，引起', sentence: 'The crisis has prompted a reevaluation of our strategy.' },
+    { word: 'poaching', phonetic: '[ˈpəʊtʃɪŋ]', meaning: 'n. 偷猎，非法打猎', sentence: 'Illegal poaching continues to threaten endangered elephants.' },
+    { word: 'thrive', phonetic: '[θraɪv]', meaning: 'v. 繁荣，猖獗', sentence: 'Illegal businesses continue to thrive in regions with weak enforcement.' },
+    { word: 'implication', phonetic: '[ˌɪmplɪˈkeɪʃn]', meaning: 'n. 可能的影响，牵连', sentence: 'We must fully grasp the implications of the new fiscal policy.' },
+    { word: 'fiscal', phonetic: '[ˈfɪskl]', meaning: 'adj. 财政的', sentence: 'The central bank announced a new fiscal policy.' },
+    { word: 'lucrative', phonetic: '[ˈluːkrətɪv]', meaning: 'adj. 获利丰厚的', sentence: 'The smartphone market presents a lucrative opportunity for tech giants.' },
+    { word: 'fluctuation', phonetic: '[ˌflʌktʃuˈeɪʃn]', meaning: 'n. 波动，起伏', sentence: 'In light of recent fluctuations in the stock market, diversify your investments.' },
+    { word: 'mitigate', phonetic: '[ˈmɪtɪɡeɪt]', meaning: 'v. 减轻，缓和', sentence: 'Diversify your portfolios to mitigate potential losses.' },
+    { word: 'allocate', phonetic: '[ˈæləkeɪt]', meaning: 'v. 分配，拨出', sentence: 'The government has allocated substantial funds to upgrade infrastructure.' },
+    { word: 'substantial', phonetic: '[səbˈstænʃl]', meaning: 'adj. 大量的，实质的', sentence: 'We have made substantial progress on the project.' },
+    { word: 'infrastructure', phonetic: '[ˈɪnfrəstrʌktʃər]', meaning: 'n. 基础设施', sentence: 'Funds are needed to upgrade infrastructure like roads and bridges.' }
+  ];
+
+  let currentIndex = 0;
+  let reviewList = [];
+  const card = document.getElementById('card');
+  const controls = document.getElementById('controls');
+
+  // 渲染当前卡片内容
+  function renderCard() {
+    if (currentIndex >= words.length) {
+      showEndScreen();
+      return;
+    }
+    
+    // 重置卡片状态
+    card.classList.remove('is-flipped');
+    controls.classList.remove('visible');
+    
+    const currentWord = words[currentIndex];
+    document.getElementById('progress-text').innerText = `词汇自测： ${currentIndex + 1} / ${words.length}`;
+    document.getElementById('front-word').innerText = currentWord.word;
+    document.getElementById('front-phonetic').innerText = currentWord.phonetic;
+    document.getElementById('back-meaning').innerText = currentWord.meaning;
+    
+    // 将例句中的目标词汇加粗变色，方便识别
+    const regex = new RegExp(`(${currentWord.word.replace(/ing|ed|s$/,'')}[a-z]*)`, 'gi');
+    const boldedSentence = currentWord.sentence.replace(regex, '<b>$1</b>');
+    document.getElementById('back-sentence').innerHTML = boldedSentence;
+  }
+
+  // 点击翻转卡片逻辑
+  card.addEventListener('click', () => {
+    if (!card.classList.contains('is-flipped')) {
+      card.classList.add('is-flipped');
+      controls.classList.add('visible'); // 翻面后显示打分按钮
+    }
+  });
+
+  // 处理认识/不认识逻辑
+  function handleAnswer(isKnown) {
+    if (!isKnown) {
+      reviewList.push(words[currentIndex]);
+    }
+    currentIndex++;
+    // 延迟一点点翻转，视觉体验更好
+    setTimeout(() => {
+        renderCard();
+    }, 150);
+  }
+
+  // 显示结算画面
+  function showEndScreen() {
+    document.getElementById('app-container').style.display = 'none';
+    const endScreen = document.getElementById('end-screen');
+    endScreen.style.display = 'block';
+    
+    const listContainer = document.getElementById('review-list');
+    if (reviewList.length === 0) {
+      listContainer.innerHTML = '<p style="text-align:center; color:#00b894; font-size:1.2em; font-weight:bold;">🏆 太棒了！所有核心词汇你都已经掌握！</p>';
+    } else {
+      listContainer.innerHTML = reviewList.map(item => 
+        `<div class="review-item">
+          <span class="review-word">${item.word}</span> 
+          <span style="color:#636e72;">${item.phonetic}</span><br>
+          <span style="font-size:0.95em; color:#2d3436; margin-top:5px; display:inline-block;">${item.meaning}</span>
+        </div>`
+      ).join('');
+    }
+  }
+
+  // 游戏初始化
+  renderCard();
+</script>
+</body>
+</html>
